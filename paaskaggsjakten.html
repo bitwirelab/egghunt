@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🥚 Påskäggsjakten</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --egg1: #FF6B9D;
+    --egg2: #FFD93D;
+    --egg3: #6BCB77;
+    --egg4: #4D96FF;
+    --egg5: #FF9A3C;
+    --bg: #FFF5E6;
+    --dark: #2D1B69;
+    --soft: #FFF0F8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--dark);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    background: linear-gradient(135deg, #FF6B9D 0%, #FFD93D 50%, #6BCB77 100%);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    z-index: 1000;
+    position: relative;
+  }
+  header h1 {
+    font-family: 'Lilita One', cursive;
+    font-size: 1.6rem;
+    color: white;
+    text-shadow: 2px 2px 0px rgba(0,0,0,0.2);
+    letter-spacing: 1px;
+  }
+  .score-board {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .score-pill {
+    background: rgba(255,255,255,0.9);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: var(--dark);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .main-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #map {
+    flex: 1;
+    position: relative;
+    cursor: crosshair;
+  }
+  .sidebar {
+    width: 300px;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    border-left: 3px solid #FFD93D;
+    overflow: hidden;
+  }
+  .sidebar-header {
+    padding: 15px;
+    background: linear-gradient(135deg, #FFF0F8, #FFFDE7);
+    border-bottom: 2px solid #FFE082;
+    font-family: 'Lilita One', cursive;
+    font-size: 1.1rem;
+    color: var(--dark);
+  }
+  .tabs {
+    display: flex;
+    background: #f8f8f8;
+    border-bottom: 2px solid #eee;
+  }
+  .tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    border: none;
+    background: none;
+    color: #888;
+  }
+  .tab.active {
+    background: white;
+    color: var(--dark);
+    border-bottom: 3px solid var(--egg1);
+  }
+  .tab-content { display: none; flex: 1; overflow-y: auto; padding: 15px; }
+  .tab-content.active { display: block; }
+
+  /* Egg list */
+  .egg-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    background: #f9f9f9;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .egg-item:hover { border-color: #FFD93D; background: #FFFDE7; transform: translateX(3px); }
+  .egg-item.found { background: #E8F5E9; border-color: var(--egg3); opacity: 0.7; }
+  .egg-icon-sm { font-size: 1.5rem; }
+  .egg-info { flex: 1; }
+  .egg-name { font-weight: 800; font-size: 0.9rem; }
+  .egg-hint { font-size: 0.75rem; color: #888; margin-top: 2px; }
+  .egg-pts { font-weight: 800; font-size: 0.85rem; color: var(--egg1); }
+  .found-badge { font-size: 1.2rem; }
+
+  /* Leaderboard */
+  .player-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    background: #f9f9f9;
+  }
+  .player-row.you { background: linear-gradient(135deg, #FFF9C4, #FFF0F8); border: 2px solid #FFD93D; }
+  .rank { font-family: 'Lilita One', cursive; font-size: 1.2rem; width: 28px; text-align: center; }
+  .player-name { flex: 1; font-weight: 700; }
+  .player-pts { font-weight: 800; color: var(--dark); }
+  .rank-1 { color: gold; }
+  .rank-2 { color: silver; }
+  .rank-3 { color: #cd7f32; }
+
+  /* Controls */
+  .control-btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: none;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #FF6B9D, #FF9A3C);
+    color: white;
+    box-shadow: 0 4px 12px rgba(255,107,157,0.4);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(255,107,157,0.5); }
+  .btn-secondary {
+    background: linear-gradient(135deg, #4D96FF, #6BCB77);
+    color: white;
+    box-shadow: 0 4px 12px rgba(77,150,255,0.3);
+  }
+  .btn-secondary:hover { transform: translateY(-2px); }
+  .btn-danger { background: #f5f5f5; color: #e53935; border: 2px solid #e53935; }
+  .btn-danger:hover { background: #e53935; color: white; }
+
+  .input-field {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid #eee;
+    border-radius: 10px;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-field:focus { border-color: #FFD93D; }
+
+  .label { font-weight: 700; font-size: 0.8rem; color: #888; margin-bottom: 4px; display: block; }
+
+  .mode-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    margin-bottom: 12px;
+  }
+  .mode-place { background: #E8F5E9; color: #2E7D32; }
+  .mode-hunt { background: #FFF9C4; color: #F57F17; }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--dark);
+    color: white;
+    padding: 14px 28px;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 1rem;
+    z-index: 9999;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.success { background: linear-gradient(135deg, #6BCB77, #4CAF50); }
+  #toast.error { background: linear-gradient(135deg, #FF6B9D, #e53935); }
+  #toast.info { background: linear-gradient(135deg, #4D96FF, #2196F3); }
+
+  /* Egg popup on map */
+  .found-burst {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 5rem;
+    z-index: 9999;
+    pointer-events: none;
+    animation: burst 1.2s ease forwards;
+  }
+  @keyframes burst {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+    50% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+  }
+
+  /* Radius circle pulse */
+  .pulse-ring {
+    animation: pulseRing 2s ease-in-out infinite;
+  }
+  @keyframes pulseRing {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .progress-bar-wrap {
+    background: #eee;
+    border-radius: 10px;
+    height: 8px;
+    margin: 8px 0 14px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #FF6B9D, #FFD93D, #6BCB77);
+    transition: width 0.5s ease;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 30px 15px;
+    color: #bbb;
+    font-weight: 700;
+  }
+  .empty-state .em { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+
+  .section-title {
+    font-family: 'Lilita One', cursive;
+    font-size: 1rem;
+    color: var(--dark);
+    margin: 12px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .color-picker-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .color-dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .color-dot.selected { border-color: var(--dark); transform: scale(1.15); }
+
+  .range-input { width: 100%; margin-bottom: 10px; accent-color: var(--egg1); }
+
+  /* Hint radius colors */
+  .hint-hot { color: #e53935; font-weight: 800; }
+  .hint-warm { color: #FF9800; font-weight: 800; }
+  .hint-cold { color: #2196F3; font-weight: 800; }
+
+  .distance-indicator {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border-radius: 20px;
+    padding: 6px 20px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    z-index: 999;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    display: none;
+    gap: 6px;
+    align-items: center;
+  }
+  .distance-indicator.visible { display: flex; }
+
+  /* Leaflet custom markers */
+  .egg-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3));
+    transition: transform 0.2s;
+    animation: eggBounce 2s ease-in-out infinite;
+  }
+  @keyframes eggBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+  .egg-marker.hidden-mode { filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)) blur(3px); opacity: 0.3; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🐰 Påskäggsjakten</h1>
+  <div class="score-board">
+    <div class="score-pill">🥚 <span id="found-count">0</span>/<span id="total-count">0</span></div>
+    <div class="score-pill">⭐ <span id="my-score">0</span> p</div>
+    <div class="score-pill" id="mode-pill" style="background:linear-gradient(135deg,#FF6B9D,#FFD93D);color:white">📍 Placera ägg</div>
+  </div>
+</header>
+
+<div class="main-layout">
+  <div id="map"></div>
+  <div class="sidebar">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('eggs')">🥚 Ägg</button>
+      <button class="tab" onclick="switchTab('board')">🏆 Topplista</button>
+      <button class="tab" onclick="switchTab('settings')">⚙️ Spel</button>
+    </div>
+    <div id="tab-eggs" class="tab-content active">
+      <div id="egg-list-container"></div>
+    </div>
+    <div id="tab-board" class="tab-content">
+      <div id="leaderboard-container"></div>
+    </div>
+    <div id="tab-settings" class="tab-content">
+      <div class="section-title">👤 Spelaren</div>
+      <label class="label">Ditt namn</label>
+      <input class="input-field" id="player-name" type="text" value="Spelare 1" maxlength="20">
+
+      <div class="section-title">🎮 Spelläge</div>
+      <button class="control-btn btn-primary" onclick="toggleMode()">🔄 Byt läge</button>
+      <div id="mode-desc" style="font-size:0.8rem;color:#888;margin-bottom:12px;">Klicka på kartan för att placera påskägg.</div>
+
+      <div id="place-controls">
+        <div class="section-title">🥚 Nytt ägg</div>
+        <label class="label">Namn/ledtråd</label>
+        <input class="input-field" id="egg-hint" type="text" placeholder="t.ex. 'Nära bänken'" maxlength="40">
+        <label class="label">Poäng</label>
+        <input class="input-field" id="egg-points" type="number" value="10" min="1" max="100">
+        <label class="label">Emoji 🎨</label>
+        <div class="color-picker-row" id="emoji-picker"></div>
+        <label class="label">Sökradie (meter): <span id="radius-val">30</span></label>
+        <input class="range-input" type="range" id="egg-radius" min="5" max="200" value="30" oninput="document.getElementById('radius-val').textContent=this.value">
+        <p style="font-size:0.75rem;color:#aaa;margin-bottom:10px;">Spelaren måste klicka inom denna radie för att hitta ägget.</p>
+        <button class="control-btn btn-secondary" onclick="startPlacingEgg()">📍 Placera ägg på kartan</button>
+      </div>
+
+      <div class="section-title">🎯 Spelalternativ</div>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.9rem;margin-bottom:8px;cursor:pointer;">
+        <input type="checkbox" id="show-hints" checked> Visa temperaturtips (🔥❄️)
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.9rem;margin-bottom:12px;cursor:pointer;">
+        <input type="checkbox" id="hide-eggs" checked> Dölj ägg på kartan
+      </label>
+
+      <button class="control-btn btn-danger" onclick="resetGame()">🗑️ Återställ spelet</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast">🎉 Hittade ett ägg!</div>
+<div id="distance-indicator" class="distance-indicator"></div>
+
+<script>
+const EGG_EMOJIS = ['🥚','🐣','🐰','🌸','🌷','🎀','💛','💜','🟡','🟣','🔴','🟢'];
+
+let map, eggs = [], players = [], mode = 'place', placingEgg = false;
+let tempMarker = null, selectedEmoji = '🥚';
+let myScore = 0, foundEggs = new Set();
+let circles = [];
+
+// Init map
+map = L.map('map').setView([59.33, 18.07], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap',
+  maxZoom: 19
+}).addTo(map);
+
+// Emoji picker
+const picker = document.getElementById('emoji-picker');
+EGG_EMOJIS.forEach(em => {
+  const d = document.createElement('div');
+  d.className = 'color-dot' + (em === selectedEmoji ? ' selected' : '');
+  d.textContent = em;
+  d.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:#f5f5f5;width:32px;height:32px;';
+  d.onclick = () => {
+    document.querySelectorAll('.color-dot').forEach(x => x.classList.remove('selected'));
+    d.classList.add('selected');
+    selectedEmoji = em;
+  };
+  picker.appendChild(d);
+});
+
+// Demo players
+players = [
+  { name: 'Anna 🐇', score: 45 },
+  { name: 'Erik 🐣', score: 30 },
+  { name: 'Sofia 🌸', score: 20 },
+];
+
+function getPlayerName() {
+  return document.getElementById('player-name').value || 'Du';
+}
+
+function createEggIcon(emoji, hidden) {
+  return L.divIcon({
+    html: `<div class="egg-marker${hidden ? ' hidden-mode' : ''}">${emoji}</div>`,
+    className: '',
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+  });
+}
+
+function addEggToMap(egg) {
+  const hidden = document.getElementById('hide-eggs').checked && mode === 'hunt';
+  const marker = L.marker([egg.lat, egg.lng], {
+    icon: createEggIcon(egg.emoji, hidden),
+    interactive: mode === 'hunt'
+  }).addTo(map);
+
+  if (mode === 'place') {
+    marker.bindPopup(`<b>${egg.emoji} ${egg.hint}</b><br>${egg.points} poäng<br><small>Radie: ${egg.radius}m</small>`);
+  }
+
+  // Radius circle
+  const circle = L.circle([egg.lat, egg.lng], {
+    radius: egg.radius,
+    color: egg.color || '#FF6B9D',
+    fillColor: egg.color || '#FF6B9D',
+    fillOpacity: 0.1,
+    weight: 2,
+    dashArray: '6,4',
+    className: 'pulse-ring'
+  }).addTo(map);
+
+  if (mode === 'hunt') circle.setStyle({ opacity: 0, fillOpacity: 0 });
+
+  egg.marker = marker;
+  egg.circle = circle;
+  circles.push(circle);
+}
+
+function startPlacingEgg() {
+  if (mode !== 'place') {
+    showToast('Byt till placeraläge först!', 'error'); return;
+  }
+  placingEgg = true;
+  showToast('📍 Klicka på kartan för att placera ägget!', 'info');
+  map.getContainer().style.cursor = 'crosshair';
+}
+
+map.on('click', function(e) {
+  if (mode === 'hunt') {
+    handleHuntClick(e.latlng);
+    return;
+  }
+  if (!placingEgg) return;
+  placingEgg = false;
+  map.getContainer().style.cursor = 'crosshair';
+
+  const hint = document.getElementById('egg-hint').value || `Ägg ${eggs.length + 1}`;
+  const points = parseInt(document.getElementById('egg-points').value) || 10;
+  const radius = parseInt(document.getElementById('egg-radius').value) || 30;
+  const colors = ['#FF6B9D','#FFD93D','#6BCB77','#4D96FF','#FF9A3C'];
+
+  const egg = {
+    id: Date.now(),
+    lat: e.latlng.lat,
+    lng: e.latlng.lng,
+    hint, points, radius,
+    emoji: selectedEmoji,
+    color: colors[eggs.length % colors.length],
+    found: false
+  };
+  eggs.push(egg);
+  addEggToMap(egg);
+  updateUI();
+  showToast(`${selectedEmoji} "${hint}" placerat! (${points}p)`, 'success');
+  document.getElementById('egg-hint').value = '';
+});
+
+function handleHuntClick(latlng) {
+  if (eggs.length === 0) { showToast('Inga ägg att hitta!', 'error'); return; }
+
+  let closest = null, closestDist = Infinity;
+  eggs.forEach(egg => {
+    if (egg.found) return;
+    const dist = map.distance(latlng, L.latLng(egg.lat, egg.lng));
+    if (dist < closestDist) { closestDist = dist; closest = egg; }
+  });
+
+  if (!closest) return;
+
+  if (closestDist <= closest.radius) {
+    // Found it!
+    closest.found = true;
+    foundEggs.add(closest.id);
+    myScore += closest.points;
+    document.getElementById('my-score').textContent = myScore;
+
+    closest.marker.setIcon(createEggIcon(closest.emoji, false));
+    closest.circle.setStyle({ opacity: 1, fillOpacity: 0.15 });
+
+    showBurst(closest.emoji);
+    showToast(`🎉 Hittade "${closest.hint}"! +${closest.points} poäng!`, 'success');
+    updateUI();
+    updateLeaderboard();
+
+    if (eggs.every(e => e.found)) {
+      setTimeout(() => showToast('🏆 Du hittade ALLA ägg! Grattis!', 'success'), 1500);
+    }
+  } else {
+    // Temperature hint
+    if (document.getElementById('show-hints').checked) {
+      const m = Math.round(closestDist);
+      let temp, cls;
+      if (closestDist < closest.radius * 2) { temp = '🔥 Brinnande het!'; cls = 'hint-hot'; }
+      else if (closestDist < closest.radius * 5) { temp = '♨️ Varm!'; cls = 'hint-warm'; }
+      else if (closestDist < closest.radius * 15) { temp = '😐 Ljummen...'; cls = ''; }
+      else { temp = '❄️ Iskall!'; cls = 'hint-cold'; }
+      showToast(`${temp} (${m}m bort)`, 'info');
+    }
+  }
+}
+
+function toggleMode() {
+  mode = mode === 'place' ? 'hunt' : 'place';
+  const pill = document.getElementById('mode-pill');
+  const desc = document.getElementById('mode-desc');
+  const pc = document.getElementById('place-controls');
+
+  if (mode === 'hunt') {
+    pill.textContent = '🔍 Jaktläge';
+    pill.style.background = 'linear-gradient(135deg,#6BCB77,#4D96FF)';
+    desc.textContent = 'Klicka på kartan för att leta efter gömda ägg!';
+    pc.style.display = 'none';
+    // Redraw markers hidden
+    redrawMarkers();
+    showToast('🔍 Jakten börjar! Hitta alla ägg!', 'info');
+  } else {
+    pill.textContent = '📍 Placera ägg';
+    pill.style.background = 'linear-gradient(135deg,#FF6B9D,#FFD93D)';
+    desc.textContent = 'Klicka på kartan för att placera påskägg.';
+    pc.style.display = 'block';
+    redrawMarkers();
+  }
+  updateUI();
+}
+
+function redrawMarkers() {
+  eggs.forEach(egg => {
+    if (egg.marker) {
+      const hidden = document.getElementById('hide-eggs').checked && mode === 'hunt' && !egg.found;
+      egg.marker.setIcon(createEggIcon(egg.emoji, hidden));
+      if (mode === 'hunt' && !egg.found) {
+        egg.circle.setStyle({ opacity: 0, fillOpacity: 0 });
+      } else {
+        egg.circle.setStyle({ opacity: 1, fillOpacity: 0.1 });
+      }
+    }
+  });
+}
+
+function updateUI() {
+  const found = eggs.filter(e => e.found).length;
+  document.getElementById('found-count').textContent = found;
+  document.getElementById('total-count').textContent = eggs.length;
+
+  const container = document.getElementById('egg-list-container');
+  if (eggs.length === 0) {
+    container.innerHTML = '<div class="empty-state"><span class="em">🥚</span>Inga ägg placerade ännu.<br><small>Gå till ⚙️ Spel och placera ägg!</small></div>';
+    return;
+  }
+
+  const pct = eggs.length ? (found / eggs.length * 100) : 0;
+  container.innerHTML = `
+    <div style="padding:12px 0 0">
+      <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#888;font-weight:700;">
+        <span>Framsteg</span><span>${found}/${eggs.length} hittade</span>
+      </div>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+    </div>
+    ${eggs.map(egg => `
+      <div class="egg-item${egg.found ? ' found' : ''}" onclick="flyToEgg(${egg.id})">
+        <div class="egg-icon-sm">${egg.emoji}</div>
+        <div class="egg-info">
+          <div class="egg-name">${egg.hint}</div>
+          <div class="egg-hint">Radie: ${egg.radius}m</div>
+        </div>
+        <div class="egg-pts">${egg.points}p</div>
+        ${egg.found ? '<div class="found-badge">✅</div>' : '<div class="found-badge">🔒</div>'}
+      </div>
+    `).join('')}
+  `;
+}
+
+function flyToEgg(id) {
+  const egg = eggs.find(e => e.id === id);
+  if (egg) map.flyTo([egg.lat, egg.lng], 17, { duration: 1 });
+}
+
+function updateLeaderboard() {
+  const myName = getPlayerName();
+  const allPlayers = [
+    { name: myName + ' (du)', score: myScore, you: true },
+    ...players
+  ].sort((a, b) => b.score - a.score);
+
+  const container = document.getElementById('leaderboard-container');
+  const medals = ['🥇','🥈','🥉'];
+  container.innerHTML = `
+    <div style="padding-top:8px">
+    ${allPlayers.map((p, i) => `
+      <div class="player-row${p.you ? ' you' : ''}">
+        <div class="rank rank-${i+1}">${medals[i] || (i+1)}</div>
+        <div class="player-name">${p.name}</div>
+        <div class="player-pts">⭐ ${p.score}</div>
+      </div>
+    `).join('')}
+    </div>
+    <div style="font-size:0.75rem;color:#bbb;padding:10px 0;text-align:center;">Topplista uppdateras när du hittar ägg!</div>
+  `;
+}
+
+function resetGame() {
+  if (!confirm('Återställ spelet och ta bort alla ägg?')) return;
+  eggs.forEach(egg => {
+    if (egg.marker) map.removeLayer(egg.marker);
+    if (egg.circle) map.removeLayer(egg.circle);
+  });
+  eggs = []; foundEggs.clear(); myScore = 0;
+  document.getElementById('my-score').textContent = 0;
+  updateUI(); updateLeaderboard();
+  showToast('🗑️ Spelet återställt!', 'info');
+}
+
+function showBurst(emoji) {
+  const el = document.createElement('div');
+  el.className = 'found-burst';
+  el.textContent = emoji;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1300);
+}
+
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = '', 3000);
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const names = ['eggs','board','settings'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'board') updateLeaderboard();
+}
+
+// Try geolocation
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(pos => {
+    map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+    L.marker([pos.coords.latitude, pos.coords.longitude], {
+      icon: L.divIcon({ html: '<div style="font-size:1.8rem;filter:drop-shadow(2px 3px 4px rgba(0,0,0,0.4))">🐰</div>', className: '', iconSize: [36,36], iconAnchor: [18,18] })
+    }).addTo(map).bindPopup('<b>Du är här!</b>').openPopup();
+  }, () => {});
+}
+
+// Init
+updateUI();
+updateLeaderboard();
+</script>
+</body>
+</html>
